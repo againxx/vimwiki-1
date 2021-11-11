@@ -987,25 +987,33 @@ function! s:process_tag_arrow_quote(line, arrow_quote) abort
     while line =~# '^' . repeat('\s*&gt;', arrow_quote + 1)
       call add(lines, '<blockquote>')
       call add(lines, '<p>')
-      let arrow_quote .= 1
+      let arrow_quote += 1
     endwhile
 
     " Treat & Add line
     let stripped_line = substitute(a:line, '^\%(\s*&gt;\)\+', '', '')
-    if stripped_line =~# '^\s*$'
-      call add(lines, '</p>')
-      call add(lines, '<p>')
-    endif
     call add(lines, stripped_line)
     let processed = 1
 
-  " Check if must decrease level
   elseif arrow_quote > 0
-    while line !~# '^' . repeat('\s*&gt;', arrow_quote - 1)
-      call add(lines, '</p>')
-      call add(lines, '</blockquote>')
-      let arrow_quote -= 1
-    endwhile
+    " Check if need to add new paragraph
+    if line =~# '^' . repeat('\s*&gt;', arrow_quote)
+      let stripped_line = substitute(a:line, '^\%(\s*&gt;\)\+', '', '')
+      if stripped_line =~# '^\s*$'
+        call add(lines, '</p>')
+        call add(lines, '<p>')
+      endif
+      call add(lines, stripped_line)
+      let processed = 1
+
+    " Check if must decrease level
+    else
+      while line !~# '^' . repeat('\s*&gt;', arrow_quote - 1)
+        call add(lines, '</p>')
+        call add(lines, '</blockquote>')
+        let arrow_quote -= 1
+      endwhile
+    endif
   endif
   return [processed, lines, arrow_quote]
 endfunction
@@ -1545,8 +1553,8 @@ function! s:parse_line(line, state) abort
       let state.table = s:close_tag_table(state.table, res_lines, state.header_ids)
       let state.pre = s:close_tag_pre(state.pre, res_lines)
       let state.math = s:close_tag_math(state.math, res_lines)
-      let state.quote = s:close_tag_precode(state.quote || state.arrow_quote, res_lines)
-      let state.arrow_quote = s:close_tag_arrow_quote(state.arrow_quote, lines)
+      let state.quote = s:close_tag_precode(state.quote, res_lines)
+      let state.arrow_quote = s:close_tag_arrow_quote(state.arrow_quote, res_lines)
       let state.para = s:close_tag_para(state.para, res_lines)
 
       call add(res_lines, line)
@@ -1644,8 +1652,8 @@ function! s:parse_line(line, state) abort
     if processed && len(state.lists)
       call s:close_tag_list(state.lists, lines)
     endif
-    if processed && (state.quote || state.arrow_quote)
-      let state.quote = s:close_tag_precode(state.quote || state.arrow_quote, lines)
+    if processed && (state.quote)
+      let state.quote = s:close_tag_precode(state.quote, lines)
     endif
     if processed && state.arrow_quote
       let state.arrow_quote = s:close_tag_arrow_quote(state.arrow_quote, lines)
